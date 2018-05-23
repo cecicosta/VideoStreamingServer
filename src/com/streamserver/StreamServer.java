@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -14,14 +15,20 @@ import com.streamreceiver.window.StreamReceiverWindow;
 public class StreamServer {
 	Thread t;
 	Socket client;
+	
+	private int width;
+	private int height;
 	public StreamServer() throws IOException {
 		//System.setProperty("java.awt.headless", "true");
 		socket = new ServerSocket(10400);
+		System.out.println("Waiting for connection...");
 		client = socket.accept();
 		System.out.println("Connection from client accepted");
 		StreamReceiverWindow receiver = StreamReceiverWindow.GetInstance();
 		
 		t = new Thread(new Runnable(){
+
+
 			@Override
 			public void run() {
 				InputStream reader = null;
@@ -34,54 +41,69 @@ public class StreamServer {
 					e.printStackTrace();
 				}
 				boolean firstFrame = true;
+				int bytesRead = 0;
+				try{
+					//Read resolution
+					bytesRead = reader.read(body);
+				}catch(Exception e){ System.out.println("Failed to get resolution" + e.getMessage()); return; }
+				String[] resolution = new String(body, 0, bytesRead).split(",");
+				
+				width = resolution.length > 0 ? Integer.parseInt(resolution[0]) : 0;
+				height = resolution.length > 1 ? Integer.parseInt(resolution[1]) : 0;
+				
+				System.out.println("Resolution: " + width + ", " + height);
+				
 				while(true){
-					try {	
-						
-						int bytesRead = 0;
+
+					bytesRead = 0;
+					try{
 						bytesRead = reader.read(body);
-						int totalBytesToRead = Integer.parseInt(new String(body,0 , bytesRead));
-						//System.out.println("Bytes to read: " + totalBytesToRead);
-						
-						String msg = "REQUEST_FILE: " + totalBytesToRead;
+					}catch(Exception e){ System.out.println(e.getMessage()); break; }
+					
+					int totalBytesToRead = Integer.parseInt(new String(body,0 , bytesRead));
+					
+					String msg = "REQUEST_FILE: " + totalBytesToRead;
+					try{
 						writer.write(msg.getBytes());
-						
-						body = new byte[totalBytesToRead];
-						//Read file data
-						bytesRead = 0;
-						int totalBytesRead = 0;
+					}catch(Exception e){ System.out.println(e.getMessage()); break; }
+
+					body = new byte[totalBytesToRead];
+					
+					//Read file data
+					bytesRead = 0;
+					int totalBytesRead = 0;
+					try{
 						while(totalBytesRead < totalBytesToRead && bytesRead > -1) {
 							bytesRead = reader.read(body, totalBytesRead, totalBytesToRead - totalBytesRead);
 							totalBytesRead += bytesRead < -1? 0 : bytesRead;
-							//System.out.println("Read: " + totalBytesRead + " of " + totalBytesToRead);
 						}
-						
-						if(totalBytesRead != totalBytesToRead) {							
-							//System.out.println("read bytes mismatch: " + totalBytesRead + " read, expected: " + totalBytesToRead);
-							msg = "BYTES_MISMATCH";
+					}catch(Exception e){ System.out.println(e.getMessage()); break; }
+					
+					if(totalBytesRead != totalBytesToRead) {							
+						msg = "BYTES_MISMATCH";
+						try{ 
 							writer.write(msg.getBytes());
-							continue;
-						}
-						
-						if(firstFrame) {
-							receiver.Initiate(body);
-							receiver.setOnCloseCallback((Void) -> StreamServer.this.onWindowClosed());
-							firstFrame = false;
-						}else {
-							receiver.SetNewFrame(body);
-						}
-						
-						msg = "ALL_BYTES_RECEIVED";
-						writer.write(msg.getBytes());
-						
-					} catch (Exception e) {
-						e.printStackTrace();
-						break;
+						}catch(Exception e){System.out.println(e.getMessage()); break; }
+						System.out.println("read bytes mismatch: " + totalBytesRead + " read, expected: " + totalBytesToRead);
+						continue;
 					}
+					
+					if(firstFrame) {
+						receiver.initiate(body, width, height);
+						receiver.setOnCloseCallback((Void) -> StreamServer.this.onWindowClosed());
+						firstFrame = false;
+					}else {
+						receiver.updateFrame(body);
+					}
+					
+					msg = "ALL_BYTES_RECEIVED";
+					try{
+						writer.write(msg.getBytes());
+					}catch(Exception e){ System.out.println(e.getMessage()); break; }
 				}
 				try {
 					client.close();
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
@@ -97,7 +119,10 @@ public class StreamServer {
 		}
 		try {
 			System.out.println("Server has stopped. Starting to encode video file.");
-			JpegImagesToMovie.CreateVideoFile(new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date()).toString());
+			JpegImagesToMovie.CreateVideoFile(width, height, StreamReceiverWindow.GetInstance().destinationDirectory,
+					new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date()).toString());
+			JpegImagesToMovie.deleteSourceFiles();
+			
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

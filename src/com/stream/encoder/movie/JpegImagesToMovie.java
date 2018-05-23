@@ -69,7 +69,9 @@ import javax.media.protocol.PullBufferStream;
  */
 public class JpegImagesToMovie implements ControllerListener, DataSinkListener {
 
-	  public static final File dir = new File("tmp");
+	  public static int width = 640;
+	  public static int height = 360;
+	  public static File dir = null;
 	  public static final String[] extensions = new String[]{"jpg", "jpeg", "png"};
 	  public static final FilenameFilter imageFilter = new FilenameFilter() {
 	    @Override
@@ -83,11 +85,21 @@ public class JpegImagesToMovie implements ControllerListener, DataSinkListener {
 	    }
 	  };
 	  
-	public static void CreateVideoFile(String saveToPath) throws IOException {
-	    File file = new File(saveToPath + ".mov");
+	public static void CreateVideoFile(int width, int height, String sourcePath, String saveToPath) throws IOException {
+		dir = new File(sourcePath);
+	    if(!dir.exists()){
+	    	System.out.println("Source directory does not exists.");
+	    	return;
+	    }
+	    
+	    JpegImagesToMovie.width = width;
+	    JpegImagesToMovie.height = height;
+		
+		File file = new File(saveToPath + ".mov");
 	    if (!file.exists()) {
 	        file.createNewFile();
 	    }
+	    
 	    Vector<String> imgLst = new Vector<>();
 	    if (dir.isDirectory()) {
 	        for (final File f : dir.listFiles(imageFilter)) {               
@@ -98,6 +110,15 @@ public class JpegImagesToMovie implements ControllerListener, DataSinkListener {
 	    makeVideo("file:\\" + file.getAbsolutePath(), imgLst); 
 	}
 	
+	public static void deleteSourceFiles(){
+	   File[] contents = dir.listFiles();
+	    if (contents != null) {
+	        for (File f : contents) {
+	        	f.delete();
+	        }
+	    }
+	}
+	
 	public static void makeVideo(String fileName, Vector imgLst) throws MalformedURLException {
 	    JpegImagesToMovie imageToMovie = new JpegImagesToMovie();
 	    MediaLocator oml;
@@ -106,7 +127,7 @@ public class JpegImagesToMovie implements ControllerListener, DataSinkListener {
 	        System.exit(0);
 	    }
 	    int interval = 40;
-	    imageToMovie.doIt(640, 360, (1000 / interval), imgLst, oml);
+	    imageToMovie.doIt(width, height, (1000 / interval), imgLst, oml);
 	 }  
 	
     public boolean doIt(int width, int height, int frameRate, Vector inFiles,

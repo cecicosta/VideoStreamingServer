@@ -22,7 +22,8 @@ REQUEST_FILE:totalBytesToRead
 ```
 
 To confirm it receive the amount of bytes to read correctly and notifies it is ready to read the frame.
-#### It must be in raw RGB 24bits format. #### 
+
+** Obs: It must be in raw RGB 24bits format. **
 
 After receiving the exact amount of bytes expected, it return the message:
 
